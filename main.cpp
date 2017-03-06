@@ -10,9 +10,10 @@
 #include <cassert>
 #include <sys/epoll.h>
 
-#include "locker.h"
+//#include "locker.h"
 #include "threadpool.h"
 #include "http_conn.h"
+#include "threadmanage.h"
 
 #define MAX_FD 65536
 #define MAX_EVENT_NUMBER 10000
@@ -57,6 +58,7 @@ int main( int argc, char* argv[] )
 
     addsig( SIGPIPE, SIG_IGN );
 
+    /*
     threadpool< http_conn >* pool = NULL;
     try
     {
@@ -66,6 +68,9 @@ int main( int argc, char* argv[] )
     {
         return 1;
     }
+    */
+
+    CThreadManage* manage = CThreadManage::init(10);
 
     http_conn* users = new http_conn[ MAX_FD ];
     assert( users );
@@ -92,7 +97,8 @@ int main( int argc, char* argv[] )
     epoll_event events[ MAX_EVENT_NUMBER ];
     int epollfd = epoll_create( 5 );
     assert( epollfd != -1 );
-    addfd( epollfd, listenfd, false );
+    //addfd( epollfd, listenfd, false );
+    addfd( epollfd, listenfd, true );
     http_conn::m_epollfd = epollfd;
 
     while( true )
@@ -133,7 +139,8 @@ int main( int argc, char* argv[] )
             {
                 if( users[sockfd].read() )
                 {
-                    pool->append( users + sockfd );
+                    //pool->append( users + sockfd );
+                    manage->Run(users + sockfd, NULL);
                 }
                 else
                 {
@@ -155,6 +162,7 @@ int main( int argc, char* argv[] )
     close( epollfd );
     close( listenfd );
     delete [] users;
-    delete pool;
+    //delete pool;
+    manage->TerminateAll();
     return 0;
 }
