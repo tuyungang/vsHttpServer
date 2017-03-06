@@ -1,28 +1,28 @@
-#pool_cgi_main: pool_cgi_test.o 
-#	g++ -g pool_cgi_test.o -o pool_cgi_main
-#pool_cgi_test.o: pool_cgi_test.cpp processpool.h
-#	g++ -g -c pool_cgi_test.cpp
-#clean:
-#	@echo "cleaning project"
-#	-rm pool_cgi_test*.o
-#	@echo "clean completed"
-#.PHONY: clean
+CXX = g++
+CXXFLAGS = -lpthread
 
-http_main: main.o http_conn.o
-	g++ main.o http_conn.o -o http_main -lpthread
+http_main: main.o job.o threadpool.o threadmanage.o http_conn.o
+	$(CXX) -o http_main main.o job.o threadpool.o threadmanage.o http_conn.o $(CXXFLAGS) 
 
-main.o: http_conn.h locker.h threadpool.h
-http_conn.o: http_conn.h locker.h
+main.o: http_conn.h threadmanage.h
+job.o: job.h threadpool.h
+threadpool.o: threadpool.h job.h threadlock.h
+threadmanage.o: threadmanage.h job.h threadpool.h threadlock.h
+http_conn.o: http_conn.h job.h
 
-main.o: main.cpp http_conn.cpp 
-	g++ -g -c main.cpp http_conn.cpp 
-http_conn.o: http_conn.cpp
-	g++ -g -c http_conn.cpp
+main.o: main.cpp threadmanage.cpp http_conn.cpp
+	$(CXX) -g -c main.cpp threadmanage.cpp http_conn.cpp
+job.o: job.cpp threadpool.cpp
+	$(CXX) -g -c job.cpp threadpool.cpp
+threadpool.o: threadpool.cpp job.cpp
+	$(CXX) -g -c threadpool.cpp job.cpp 
+threadmanage.o: threadmanage.cpp job.cpp threadpool.cpp
+	$(CXX) -g -c threadmanage.cpp job.cpp threadpool.cpp
+http_conn.o: http_conn.cpp job.cpp
+	$(CXX) -g -c http_conn.cpp job.cpp
 
 clean:
 	@echo "cleaning project"
-	-rm main*.o http_conn*.o
+	-rm main*.o job*.o threadpool*.o threadmanage*.o http_conn*.o
 	@echo "clean completed"
 .PHONY: clean
-
-
