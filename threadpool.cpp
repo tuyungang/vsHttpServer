@@ -170,7 +170,7 @@ void CThreadPool::MoveToIdleList(CWorkerThread* busythread)
     m_BusyMutex.unlock(); 
 
     m_IdleCond.signal(); 
-    //m_MaxNumCond.signal(); 
+    m_MaxNumCond.signal(); 
 } 
 
 void CThreadPool::CreateIdleThread(int num) 
@@ -210,7 +210,7 @@ void CThreadPool::DeleteIdleThread(int num)
         if(pos != m_ThreadList.end()){
             m_ThreadList.erase(pos);
         }
-        thr->Join();
+        //thr->Join();
         m_AvailNum--; 
         printf("The idle thread available num:%d \n",m_AvailNum); 
         printf("The idlelist num:%d \n",m_IdleList.size()); 
