@@ -22,6 +22,7 @@ int setnonblocking( int fd )
     return old_option;
 }
 
+/*
 void addfd( int epollfd, int fd, bool one_shot )
 {
     epoll_event event;
@@ -48,12 +49,13 @@ void modfd( int epollfd, int fd, int ev )
     event.events = ev | EPOLLET | EPOLLONESHOT | EPOLLRDHUP;
     epoll_ctl( epollfd, EPOLL_CTL_MOD, fd, &event );
 }
+*/
 
 CJob::CJob(void):m_pWorkThread(NULL) 
     ,m_JobNo(0) 
     ,m_JobName(NULL) 
 { 
-
+    init();
 }
 
 CJob::~CJob()
@@ -74,20 +76,24 @@ void CJob::SetJobName(char* jobname)
     } 
 }
 
-int CJob::m_user_count = 0;
-int CJob::m_epollfd = -1;
+//int CJob::m_user_count = 0; 
+//int CJob::m_epollfd = -1;
 
 void CJob::close_conn( bool real_close )
 {
-    if( real_close && ( m_sockfd != -1 ) )
-    {
+    //if( real_close && ( m_sockfd != -1 ) )
+    Conn *conn = (Conn*)this;
+    if( real_close && (conn->GetFd()) != -1 ){
+        conn->GetThread()->GetThreadPool()->CheckIfInBusyList(conn->GetThread(),(void*)conn);
+        bufferevent_free(conn->GetConnBufferevent());
         //modfd( m_epollfd, m_sockfd, EPOLLIN );
-        removefd( m_epollfd, m_sockfd );
-        m_sockfd = -1;
-        m_user_count--;
+        //removefd( m_epollfd, m_sockfd );
+        //m_sockfd = -1;
+        //m_user_count--;  //modified by tu
     }
 }
 
+/*
 void CJob::init( int sockfd, const sockaddr_in& addr )
 {
     m_sockfd = sockfd;
@@ -98,10 +104,11 @@ void CJob::init( int sockfd, const sockaddr_in& addr )
     int reuse = 1;
     setsockopt( m_sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof( reuse ) );
     addfd( m_epollfd, sockfd, true );
-    m_user_count++;
+    //m_user_count++;  //modified by tu
 
     init();
 }
+*/
 
 void CJob::init()
 {
@@ -158,6 +165,7 @@ CJob::LINE_STATUS CJob::parse_line()
     return LINE_OPEN;
 }
 
+/*
 bool CJob::read()
 {
     if( m_read_idx >= READ_BUFFER_SIZE )
@@ -187,6 +195,7 @@ bool CJob::read()
     }
     return true;
 }
+*/
 
 CJob::HTTP_CODE CJob::parse_request_line( char* text )
 {
@@ -345,6 +354,7 @@ CJob::HTTP_CODE CJob::parse_content( char* text )
     return NO_REQUEST;
 }
 
+
 CJob::HTTP_CODE CJob::process_read()
 {
     LINE_STATUS line_status = LINE_OK;
@@ -443,12 +453,33 @@ void CJob::unmap()
 
 bool CJob::write()
 {
+    bufferevent_write(((Conn*)this)->GetConnBufferevent(), m_write_buf, strlen(m_write_buf));
+    bufferevent_write(((Conn*)this)->GetConnBufferevent(), m_file_address, strlen(m_file_address));
+
+    unmap();
+    //evbuffer_lock(((Conn*)this)->GetConnEvbuffer());
+    //int n = evbuffer_reserve_space(((Conn*)this)->GetConnWriteEvbuffer(),len,((Conn*)this)->GetConnIovec(),2);
+    //evbuffer_commit_space(((Conn*)this)->GetConnWriteEvbuffer(),((Conn*)this)->GetConnIovec(),m_iv_count);
+    //evbuffer_unlock(((Conn*)this)->GetConnWriteEvbuffer());
+    //evbuffer_write_atmost(((Conn*)this)->GetConnWriteEvbuffer(),((Conn*)this)->GetFd(),-1);
+   // bufferevent_write(((Conn*)this)->GetConnBufferevent(), m_file_address, strlen(m_file_address));
+   if(m_linger){
+        init();
+        return true;
+   }else{
+       return false;
+   }
+}
+
+/*
+bool CJob::write()
+{
     int temp = 0;
     int bytes_have_send = 0;
     int bytes_to_send = m_write_idx;
     if ( bytes_to_send == 0 )
     {
-        modfd( m_epollfd, m_sockfd, EPOLLIN );
+        //modfd( m_epollfd, m_sockfd, EPOLLIN );
         init();
         return true;
     }
@@ -460,7 +491,7 @@ bool CJob::write()
         {
             if( errno == EAGAIN )
             {
-                modfd( m_epollfd, m_sockfd, EPOLLOUT );
+                //modfd( m_epollfd, m_sockfd, EPOLLOUT );
                 return true;
             }
             unmap();
@@ -475,17 +506,18 @@ bool CJob::write()
             if( m_linger )
             {
                 init();
-                modfd( m_epollfd, m_sockfd, EPOLLIN );
+                //modfd( m_epollfd, m_sockfd, EPOLLIN );
                 return true;
             }
             else
             {
-                modfd( m_epollfd, m_sockfd, EPOLLIN );
+                //modfd( m_epollfd, m_sockfd, EPOLLIN );
                 return false;
             } 
         }
     }
 }
+*/
 
 bool CJob::add_response( const char* format, ... )
 {
@@ -539,7 +571,12 @@ bool CJob::add_content( const char* content )
 
 bool CJob::process_write( HTTP_CODE ret )
 {
-    switch ( ret )
+    Conn *conn = (Conn*)this;
+    //evbuffer_lock(((Conn*)this)->GetConnWriteEvbuffer());
+    //int m_iv_count = evbuffer_reserve_space(((Conn*)this)->GetConnWriteEvbuffer(),2048,((Conn*)this)->GetConnIovec(),2);
+    //evbuffer_commit_space(((Conn*)this)->GetConnWriteEvbuffer(),((Conn*)this)->GetConnIovec(),n);
+    //evbuffer_unlock(((Conn*)this)->GetConnWriteEvbuffer());
+        switch ( ret )
     {
         case INTERNAL_ERROR:
         {
@@ -594,21 +631,28 @@ bool CJob::process_write( HTTP_CODE ret )
             if ( m_file_stat.st_size != 0 )
             {
                 add_headers( m_file_stat.st_size );
-                m_iv[ 0 ].iov_base = m_write_buf;
-                m_iv[ 0 ].iov_len = m_write_idx;
+                //(conn->GetConnIovec())[ 0 ].iov_base = m_write_buf;
+                //(conn->GetConnIovec())[ 0 ].iov_len = m_write_idx;
                 switch (m_request)
                 {
                     case GET_REQUEST:
-                        m_iv[ 1 ].iov_base = m_file_address;
-                        m_iv[ 1 ].iov_len = m_file_stat.st_size;
-                        m_iv_count = 2;
+                        //(conn->GetConnIovec())[ 1 ].iov_base = m_write_buf;
+                        //(conn->GetConnIovec())[ 1 ].iov_len = m_write_idx;
+
+                        //(conn->GetConnIovec())[ 1 ].iov_base = m_file_address;
+                        //m_iv[ 1 ].iov_len = m_file_stat.st_size;
+                        //(conn->GetConnIovec())[ 1 ].iov_len = 2048;
+                        //m_iv_count = 2;
                         break;
                     case HEAD_REQUEST:
-                        m_iv_count = 1;
+                        //m_iv_count = 1;
                         break;
                     default:
                         break;
                 }
+                evbuffer_commit_space(((Conn*)this)->GetConnWriteEvbuffer(),((Conn*)this)->GetConnIovec(),m_iv_count);
+                evbuffer_unlock(((Conn*)this)->GetConnWriteEvbuffer());
+
                 return true;
             }
             else
@@ -627,9 +671,9 @@ bool CJob::process_write( HTTP_CODE ret )
         }
     }
 
-    m_iv[ 0 ].iov_base = m_write_buf;
-    m_iv[ 0 ].iov_len = m_write_idx;
-    m_iv_count = 1;
+    (conn->GetConnIovec())[ 0 ].iov_base = m_write_buf;
+    (conn->GetConnIovec())[ 0 ].iov_len = m_write_idx;
+    //m_iv_count = 1;
     return true;
 }
 
@@ -638,16 +682,18 @@ void CJob::process()
     HTTP_CODE read_ret = process_read();
     if ( read_ret == NO_REQUEST )
     {
-        modfd( m_epollfd, m_sockfd, EPOLLIN );
+        //modfd( m_epollfd, m_sockfd, EPOLLIN );
         return;
     }
 
     bool write_ret = process_write( read_ret );
-    if ( ! write_ret )
-    {
+    if ( ! write_ret ){
         close_conn();
     }
-
-    modfd( m_epollfd, m_sockfd, EPOLLOUT );
+    bool ret = write();
+    if ( ! write_ret ){
+        close_conn();
+    }
+    //modfd( m_epollfd, m_sockfd, EPOLLOUT );
 }
 
