@@ -1,4 +1,87 @@
 #include "http_conn.h"
+#include "threadpool.h"
+
+Conn::Conn(int fd) : CJob(),m_fd(fd)
+{
+  m_Prev = NULL;
+  m_Next = NULL;
+}
+
+Conn::~Conn()
+{
+
+}
+
+ConnQueue::ConnQueue()
+{
+  m_head = new Conn(0);
+  m_tail = new Conn(0);
+  m_head->m_Prev = m_tail->m_Next = NULL;
+  m_head->m_Next = m_tail;
+  m_tail->m_Prev = m_head;
+  m_CurrentConnNum = 0;
+}
+
+ConnQueue::~ConnQueue()
+{
+  Conn *tcur, *tnext;
+  tcur = m_head;
+  while( tcur != NULL )
+  {
+    tnext = tcur->m_Next;
+    delete tcur;
+    tcur = tnext;
+  }
+}
+
+Conn *ConnQueue::InsertConn(int fd, CWorkerThread *t, struct bufferevent *bev)
+{
+    Conn *c;
+    if(m_CurrentConnNum < MAX_OPEN_FD){
+        c = new Conn(fd);
+        c->m_Thread = t;
+        c->m_Bev = bev;
+        Conn *next = m_head->m_Next;
+
+        c->m_Prev = m_head;
+        c->m_Next = m_head->m_Next;
+        m_head->m_Next = c;
+        next->m_Prev = c;
+        m_CurrentConnNum = m_CurrentConnNum + 1;
+        cout << "socket fd "<<fd<<"count queue:"<<m_CurrentConnNum<<endl;
+    }else{
+        return NULL;
+    }
+    if(MAX_OPEN_FD < m_CurrentConnNum + 1){
+        t->GetThreadPool()->MoveToBusyList(t);
+    }
+    if((c->m_Thread->GetThreadPool()->m_IdleList.size() == 1) && (c->m_Thread->GetThreadPool()->m_IdleList[0]->connectQueue.m_CurrentConnNum == MAX_OPEN_FD-1))
+        c->m_Thread->GetThreadPool()->CreateMainIdleThread(1);
+
+    return c;
+}
+
+void ConnQueue::DeleteConn(Conn *c)
+{
+    cout << "ConnQueue::DeleteConn" << endl;
+    c->m_Prev->m_Next = c->m_Next;
+    c->m_Next->m_Prev = c->m_Prev;
+    m_CurrentConnNum = m_CurrentConnNum - 1;
+    delete c;
+}
+
+/*
+void ConnQueue::PrintQueue()
+{
+  Conn *cur = m_head->m_Next;
+  while( cur->m_Next != NULL )
+  {
+    printf("%d ", cur->m_fd);
+    cur = cur->m_Next;
+  }
+  printf("\n");
+}
+*/
 
 /*
 const char* ok_200_title = "OK";
@@ -21,36 +104,11 @@ int setnonblocking( int fd )
     fcntl( fd, F_SETFL, new_option );
     return old_option;
 }
-
-void addfd( int epollfd, int fd, bool one_shot )
-{
-    epoll_event event;
-    event.data.fd = fd;
-    event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
-    if( one_shot )
-    {
-        event.events |= EPOLLONESHOT;
-    }
-    epoll_ctl( epollfd, EPOLL_CTL_ADD, fd, &event );
-    setnonblocking( fd );
-}
-
-void removefd( int epollfd, int fd )
-{
-    epoll_ctl( epollfd, EPOLL_CTL_DEL, fd, 0 );
-    close( fd );
-}
-
-void modfd( int epollfd, int fd, int ev )
-{
-    epoll_event event;
-    event.data.fd = fd;
-    event.events = ev | EPOLLET | EPOLLONESHOT | EPOLLRDHUP;
-    epoll_ctl( epollfd, EPOLL_CTL_MOD, fd, &event );
-}
 */
 
+/*
 void http_conn::Run(void* jobData)
 {
     this->process();
 }
+*/
