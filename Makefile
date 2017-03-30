@@ -1,28 +1,34 @@
 CXX = g++
-CXXFLAGS = -lpthread
+#CP = cp
+CXXFLAGS = -lpthread -levent
+TARGET = http_main
+OBJS = main.o job.o threadpool.o threadmanage.o tcpeventserver.o http_conn.o
+CFLAGS = -g -c
+#LKFLAGS =
+#INSTALLDIR = /mnt/
+#install:
+#	$(CP) $(TARGET) $(INSTALLDIR)
 
-http_main: main.o job.o threadpool.o threadmanage.o http_conn.o
-	$(CXX) -o http_main main.o job.o threadpool.o threadmanage.o http_conn.o $(CXXFLAGS) 
+all:$(TARGET)
 
-main.o: http_conn.h threadmanage.h
-job.o: job.h threadpool.h
-threadpool.o: threadpool.h job.h threadlock.h
-threadmanage.o: threadmanage.h job.h threadpool.h threadlock.h
-http_conn.o: http_conn.h job.h
+$(TARGET): $(OBJS)
+	$(CXX) $^ -o $@ $(CXXFLAGS)
 
-main.o: main.cpp threadmanage.cpp http_conn.cpp
-	$(CXX) -g -c main.cpp threadmanage.cpp http_conn.cpp
+main.o: main.cpp tcpeventserver.cpp
+	$(CXX) $(CFLAGS) $^
+tcpeventserver.o: tcpeventserver.cpp threadmanage.cpp job.cpp threadpool.cpp
+	$(CXX) $(CFLAGS) $^
 job.o: job.cpp threadpool.cpp
-	$(CXX) -g -c job.cpp threadpool.cpp
-threadpool.o: threadpool.cpp job.cpp
-	$(CXX) -g -c threadpool.cpp job.cpp 
+	$(CXX) $(CFLAGS) $^
+threadpool.o: threadpool.cpp job.cpp tcpeventserver.cpp http_conn.cpp
+	$(CXX) $(CFLAGS) $^
 threadmanage.o: threadmanage.cpp job.cpp threadpool.cpp
-	$(CXX) -g -c threadmanage.cpp job.cpp threadpool.cpp
-http_conn.o: http_conn.cpp job.cpp
-	$(CXX) -g -c http_conn.cpp job.cpp
+	$(CXX) $(CFLAGS) $^
+http_conn.o: http_conn.cpp job.cpp tcpeventserver.cpp
+	$(CXX) $(CFLAGS) $^
 
 clean:
 	@echo "cleaning project"
-	-rm main*.o job*.o threadpool*.o threadmanage*.o http_conn*.o
+	-rm main*.o job*.o threadpool*.o threadmanage*.o tcpeventserver*.o http_conn*.o
 	@echo "clean completed"
 .PHONY: clean
