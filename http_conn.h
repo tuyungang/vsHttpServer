@@ -80,7 +80,7 @@ struct evbuffer_iovec *GetConnIovec(){return m_iv;}
 class ConnQueue
 {
     public:
-        enum {MAX_OPEN_FD = 2};
+        enum {MAX_OPEN_FD = 2000};
         int m_CurrentConnNum;
     private:
         Conn *m_head;
@@ -88,7 +88,6 @@ class ConnQueue
     public:
         ConnQueue();
         ~ConnQueue();
-        //Conn *InsertConn(int fd, LibeventThread *t);
         Conn *InsertConn(int fd, CWorkerThread *t, struct bufferevent *bev);
         void DeleteConn(Conn *c);
         //void PrintQueue();
@@ -101,7 +100,7 @@ class http_conn : public CJob
 public:
     http_conn(){}
     ~http_conn(){}
-    void Run(void* jobData);  //add by tu
+    void Run(void* jobData);  
 
 };
 */
