@@ -25,7 +25,7 @@ class CJob;
 class CThreadManage
 {
     public:
-        enum {MAX_OBJECT = 2000};
+        enum {MAX_OBJECT = 2};
     private:
         CThreadManage();
         //CThreadManage(int num);
