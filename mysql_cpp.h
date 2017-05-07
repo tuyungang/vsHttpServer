@@ -1,3 +1,6 @@
+#ifndef _MYSQL_CPP_
+#define _MYSQL_CPP_
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <exception>
@@ -10,6 +13,7 @@
 
 using namespace std;
 
+/*
 typedef struct
 {
     char host[50];
@@ -18,12 +22,14 @@ typedef struct
     char database[20];
     int port;
 }MySqlConnInfo;
+*/
 
 class MysqlCPP
 {
-    private:
-        MysqlCPP();
-        ~MysqlCPP();
+    public:
+        MysqlCPP(MYSQL *mSQL);
+        ~MysqlCPP(){}
+        /*
     public:
         static MysqlCPP* Instance()
         {
@@ -49,17 +55,18 @@ class MysqlCPP
 
         };
         static FreeInstance _free;
+        */
     private:
-        static MysqlCPP* _instance;
-        MYSQL _mysql;
-        MySqlConnInfo m_ConnInfo;
+        //static MysqlCPP* _instance;
+        //MYSQL _mysql;
+        MYSQL *mysql;
+        //MySqlConnInfo m_ConnInfo;
         MYSQL_RES *m_Result;
         map<string,string> m_MapRes;
     public:
-        void SetMySqlConnInfo( const char *server, const char *username, const char *password, const char *database,int port);
-        //void SetMySqlConnInfo( char *server, char *username, char *password, char *database, int port);
-        void Connect_Mysql();
-        void Close_Mysql();
+        //void SetMySqlConnInfo( const char *server, const char *username, const char *password, const char *database,int port);
+        //void Connect_Mysql();
+        //void Close_Mysql();
         void Mysql_HandleSQL(const char *query);
         void Mysql_SelectSQL(const char *query);
         void Mysql_InsertSQL(const char *query);
@@ -67,3 +74,5 @@ class MysqlCPP
         void Mysql_DeleteSQL(const char *query);
         void Mysql_ErrorInfo();
 };
+
+#endif
